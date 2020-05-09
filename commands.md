@@ -115,6 +115,14 @@ docker contaienr logs webhost
 docker container top webhost
 - show process in a specific container
 
+## inspect
+docker container inspect
+- details of one container config
+
+## stats
+docker container stats
+- performance stats for all containers
+
 ## stop
 docker stop webhost
 
@@ -127,7 +135,53 @@ docker container rm 3bf 897 9ca 7f7 9a8 bf8 4e3 06d a3b
 docker container ls
 docker ps
 
+## list images
+docker image ls
 
-    
-    
+## list process
+docker run --name mongo -d mongo
+docker ps
+docker top mongo ; list running processes in specific container
+ps aux ; list all processes in system
+ps aux | grep mongo ; filter mongo
+
+## manage mulitple containers
+- nginx
+docker container run -d --name proxy -p 80:80 nginx 
+
+- mysql
+docker container run -d -p 3306:3306 --name db -e MYSQL_RANDOM_ROOT_PASSWORD=yes mysql
+docker container logs db
+
+- httpd
+docker container run -d --name webserver -p 8080:80 httpd
+
+- clean up
+docker container stop <id> <id> <id>
+docker container rm <id> <id> <id>
+
+- cofirm
+docker container ls
+docker image ls
+
+## port
+check port
+docker container port <container>
+
+
+## -it
+-i: keep session open to receive terminal input
+-t: pseudo-tty, simulates a real terminal like what SSH does
+-a: attach STDOUT/STDERR and forward signals
+
+docker container run -it  : start new container interactively
+docker container exec -it : run additional command in existing container
+
+ex) docker container run -it --name proxy nginx bash
+
+ex) docker container run -it --name ubuntu ubuntu (by default it uses bash)
+ex) docker container run -ai ubuntu
+
+ex) docker container run -it alpine bash ; won't work since bash is not part of alpine
+ex) docker container run -it alpine sh ; works
  
