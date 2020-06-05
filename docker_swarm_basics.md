@@ -430,3 +430,117 @@ ID                  NAME                    IMAGE               NODE            
 pofvth9vbv0s        wonderful_albattani.2   alpine:latest       node2               Running             Running about a minute ago                       
 jydny18v8spk        wonderful_albattani.3   alpine:latest       node1               Running             Running about a minute ago
 ```
+
+# Scaling out
+
+*Networking overview from official documentation*
+- https://docs.docker.com/network/
+```
+Network drivers
+Docker’s networking subsystem is pluggable, using drivers. Several drivers exist by default, and provide core networking functionality:
+
+bridge: The default network driver. If you don’t specify a driver, this is the type of network you are creating. Bridge networks are usually used when your applications run in standalone containers that need to communicate. See bridge networks.
+
+host: For standalone containers, remove network isolation between the container and the Docker host, and use the host’s networking directly. host is only available for swarm services on Docker 17.06 and higher. See use the host network.
+
+overlay: Overlay networks connect multiple Docker daemons together and enable swarm services to communicate with each other. You can also use overlay networks to facilitate communication between a swarm service and a standalone container, or between two standalone containers on different Docker daemons. This strategy removes the need to do OS-level routing between these containers. See overlay networks.
+
+macvlan: Macvlan networks allow you to assign a MAC address to a container, making it appear as a physical device on your network. The Docker daemon routes traffic to containers by their MAC addresses. Using the macvlan driver is sometimes the best choice when dealing with legacy applications that expect to be directly connected to the physical network, rather than routed through the Docker host’s network stack. See Macvlan networks.
+
+none: For this container, disable all networking. Usually used in conjunction with a custom network driver. none is not available for swarm services. See disable container networking.
+
+Network plugins: You can install and use third-party network plugins with Docker. These plugins are available from Docker Hub or from third-party vendors. See the vendor’s documentation for installing and using a given network plugin.
+```
+- https://docs.docker.com/network/overlay/
+```
+Use overlay networks
+
+The overlay network driver creates a distributed network among multiple Docker daemon hosts. This network sits on top of (overlays) the host-specific networks, allowing containers connected to it (including swarm service containers) to communicate securely when encryption is enabled. Docker transparently handles routing of each packet to and from the correct Docker daemon host and the correct destination container.
+
+When you initialize a swarm or join a Docker host to an existing swarm, two new networks are created on that Docker host:
+
+an overlay network called ingress, which handles control and data traffic related to swarm services. When you create a swarm service and do not connect it to a user-defined overlay network, it connects to the ingress network by default.
+a bridge network called docker_gwbridge, which connects the individual Docker daemon to the other daemons participating in the swarm.
+You can create user-defined overlay networks using docker network create, in the same way that you can create user-defined bridge networks. Services or containers can be connected to more than one network at a time. Services or containers can only communicate across networks they are each connected to.
+
+Although you can connect both swarm services and standalone containers to an overlay network, the default behaviors and configuration concerns are different. For that reason, the rest of this topic is divided into operations that apply to all overlay networks, those that apply to swarm service networks, and those that apply to overlay networks used by standalone containers.
+
+By default, swarm services which publish ports do so using the routing mesh. When you connect to a published port on any swarm node (whether it is running a given service or not), you are redirected to a worker which is running that service, transparently. Effectively, Docker acts as a load balancer for your swarm services. Services using the routing mesh are running in virtual IP (VIP) mode. Even a service running on each node (by means of the --mode global flag) uses the routing mesh. When using the routing mesh, there is no guarantee about which Docker node services client requests.
+```
+
+
+
+## Overlay Multi-host Networking
+- use --driver overlay when creating network
+- container-to-container traffic inside a single Swarm
+- optional IPSec(AES) encryption on network creation
+- each service can be connected to multiple networks
+
+### Start new session @https://labs.play-with-docker.com/ 
+- add 3 new instnaces
+- swarm init like before
+- make 2 other managers
+- Go to Node1
+
+### docker network create --driver overlay mydrupal
+```
+$ docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+2d3ea92c3867        bridge              bridge              local
+d52a1bc7f3f2        docker_gwbridge     bridge              local
+4df4e2fb5df6        host                host                local
+4q2b51uk9kje        ingress             overlay             swarm
+w4dzwj75fjqz        mydrupal            overlay             swarm
+c1742ea77d41        none                null                local
+```
+
+### docker service create --name psql --network mydrupal -e POSTGRES_PASSWORD=mypass postgres
+```
+z4npo1trbp2fm6jkebcfseou5
+overall progress: 1 out of 1 tasks 
+1/1: running   [==================================================>] 
+verify: Service converged 
+```
+```
+$ docker service ps psql
+ID                  NAME                IMAGE               NODE                DESIRED STATE       CURRENT STATE            ERROR               PORTS
+v2n8yasw8i0t        psql.1              postgres:latest     node1               Running             Running 25 seconds ago  
+```
+```
+$ docker logs psql.1.v2n8yasw8i0ttuekh7orjvuvo 
+The files belonging to this database system will be owned by user "postgres".
+...
+...
+2020-06-02 15:51:45.449 UTC [1] LOG:  database system is ready to accept connections
+```
+
+### docker service create --name drupal --network mydrupal -p 80:80 drupal
+```
+$ docker service ls
+ID                  NAME                MODE                REPLICAS            IMAGE               PORTS
+rkncrv3m61vu        drupal              replicated          1/1                 drupal:latest       *:80->80/tcp
+z4npo1trbp2f        psql                replicated          1/1                 postgres:latest 
+```
+```
+$ docker service ps drupal
+ID                  NAME                IMAGE               NODE                DESIRED STATE       CURRENT STATE                ERROR               PORTS
+rpwjt2pwgpll        drupal.1            drupal:latest       node2               Running             Running about a minute ago   
+```
+- note that psql is running on node1
+- note that drupal is running on node2
+- go to Drupal server page
+- set the database name as 'psql'
+- even though drupal is working on node1, when you access ip address of node2 or node3, the drupal webserver works
+
+## Routing Mesh
+- Route ingress (incoming) packets for a service to proper task
+- spans all nodes in Swarm
+- use IPVS from linux kernel
+- load balances Swarm services across their tasks
+- two ways this works
+    - container-to-container in an Overlay network (uses Virtual IP)
+    - external traffic incoming to published ports (all nodes listen)
+- stateless load balancing, which is OSI layer 3(TCP), but not layer 4(DNS)
+
+# How swarm works
+https://docs.docker.com/engine/swarm/how-swarm-mode-works/nodes/
