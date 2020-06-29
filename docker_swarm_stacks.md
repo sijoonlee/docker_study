@@ -83,6 +83,26 @@ docker network ls
 - docker stack ps drupal
 
 ### Example 4
+# docker-compose.yml
+```
+version: "3.1"
+
+services:
+  psql:
+    image: postgres
+    secrets:
+      - psql_user
+      - psql_password
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/psql_password
+      POSTGRES_USER_FILE: /run/secrets/psql_user
+
+secrets:
+  psql_user:
+    file: ./psql_user.txt
+  psql_password:
+    file: ./psql_password.txt
+```
 - see docker-compose.yml under docker_stack_example/compose-secret-assignment
 - docker-compose up -d
 - docker-compsoe exec psql cat /run/secrets/psql_user
